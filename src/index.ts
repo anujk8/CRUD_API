@@ -1,6 +1,10 @@
 import Fastify from "fastify";
 import { sequelize } from "./config/database.js";
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 import { logInfo, logError } from "./utils/logger.js";
 import { userRoutes } from "./routes/user.routes.js";
 import { addressRoutes } from "./routes/address.routes.js";
@@ -54,9 +58,15 @@ const startServer = async () => {
 
     logInfo(" Database connected successfully");
 
+    const port= Number(process.env.PORT) || 3000;
+
+    // console.log(` ${port}`);
+
     // Start Fastify server
-    await fastify.listen({ port: 3000, host: "0.0.0.0" });
-    logInfo(" Server running at http://localhost:3000");
+
+     await fastify.listen({port:port});
+     
+    logInfo(` Server running at http://localhost:${port}`);
   } catch (error: any) {
     logError(` Server failed to start: ${error.message}`);
     process.exit(1);
