@@ -28,7 +28,7 @@ export const getAllAddressesWithPincodeController = async (
     const result = await getAllAddressesWithPincode(pincode);
 
     if (pincode && result.length === 0) {
-      return sendError(reply, "No addresssesfound for this pincode", 404);
+      return sendError(reply, "No addressses found for this pincode", 404);
     } else {
       return sendSuccess(
         reply,
