@@ -64,8 +64,8 @@ const startServer = async () => {
 
     // Start Fastify server
 
-     await fastify.listen({port:port});
-     
+     await fastify.listen({port:port,host:'0.0.0.0'});
+
     logInfo(` Server running at http://localhost:${port}`);
   } catch (error: any) {
     logError(` Server failed to start: ${error.message}`);
