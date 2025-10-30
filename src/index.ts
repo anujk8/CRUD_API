@@ -1,76 +1,72 @@
 import Fastify from "fastify";
 import { sequelize } from "./config/database.js";
+import { ZodTypeProvider } from "fastify-type-provider-zod";
 
 import dotenv from "dotenv";
-
 dotenv.config();
 
 import { logInfo, logError } from "./utils/logger.js";
-import { userRoutes } from "./routes/user.routes.js";
+import userRoutes from "./routes/user.routes.js";
 import { addressRoutes } from "./routes/address.routes.js";
-import { aggregateAPIsRoutes } from "./routes/aggregateAPIs.routes.js";
+
 import swagger from "@fastify/swagger";
 import SwaggerUi from "@fastify/swagger-ui";
 
-// Create Fastify instance
-const fastify = Fastify(); // {logger:true} for logging all details
+const app = Fastify().withTypeProvider<ZodTypeProvider>(); // single typed instance
 
-async function swaggerFunction() {
-  await fastify.register(swagger, {
-    openapi: {
-      info: {
-        title: "My Fastify API",
-        description: "API documentation for my project",
-        version: "1.0.0",
-      },
-    },
+
+app.setErrorHandler((error, _request, reply) => {
+  console.error("Unhandled error stack:", error?.stack ?? error);
+  const status = (error && (error as any).statusCode) || 500;
+  reply.status(status).send({
+    statusCode: status,
+    error: error?.name ?? "Internal Server Error",
+    message: error?.message ?? "Internal Server Error",
   });
-}
-
-await swaggerFunction();
-
-await fastify.register(SwaggerUi, {
-  routePrefix: "/docs",
-  uiConfig: {
-    docExpansion: "list",
-    deepLinking: false,
-  },
 });
 
-// Register routes
-fastify.register(userRoutes, { prefix: "/api" }); //Method use to add plugins(Register)
-fastify.register(addressRoutes, { prefix: "/api" });
-fastify.register(aggregateAPIsRoutes, { prefix: "/api" });
-
-// Root route
-fastify.get("/", async () => {
-  return { message: "Hello World" };
-});
-
-// Start server function
-const startServer = async () => {
+// For swagger UI and docs
+async function bootstrap() {
+ 
   try {
-    // Connect & sync database
+    await app.register(swagger, {
+      openapi: {
+        info: {
+          title: "My Fastify API",
+          description: "API docs",
+          version: "1.0.0",
+        },
+      },
+    });
+    await app.register(SwaggerUi, {
+      routePrefix: "/docs",
+      uiConfig: { docExpansion: "list", deepLinking: false },
+    });
+  } catch (err) {
+    console.warn("Swagger registration failed (continuing):", err);
+  }
 
+  // register routes on the same app instance
+  await app.register(userRoutes, { prefix: "/api" });
+  await app.register(addressRoutes, { prefix: "/api" });
+
+  // simple health route
+  app.get("/", async () => ({ message: "Hello World" }));
+
+  // DB and listen
+  try {
     await sequelize.authenticate();
+    await sequelize.sync();
+    logInfo("Database connected successfully");
 
-    await sequelize.sync(); // ORM help to create table from models
-
-    logInfo(" Database connected successfully");
-
-    const port= Number(process.env.PORT) || 3000;
-
-    // console.log(` ${port}`);
-
-    // Start Fastify server
-
-     await fastify.listen({port:port,host:'0.0.0.0'});
-
-    logInfo(` Server running at http://localhost:${port}`);
-  } catch (error: any) {
-    logError(` Server failed to start: ${error.message}`);
+    const port = Number(process.env.PORT) || 3000;
+    await app.listen({ port, host: "0.0.0.0" });
+    console.log(`Server running at http://localhost:${port}`);
+  } catch (err) {
+    logError(`Server failed to start: ${err}`);
+    console.error(err);
     process.exit(1);
   }
-};
+}
 
-startServer();
+bootstrap();

@@ -7,7 +7,7 @@ export class User extends Model {
   public first_name!: string;
   public last_name!: string;
   public email!: string;
-//   public password!:string;
+  // public password!:string;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 

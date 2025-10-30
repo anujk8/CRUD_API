@@ -1,56 +1,69 @@
+import { Op } from "sequelize";
 import { User } from "../models/user.model.js";
 import { Address } from "../models/address.model.js";
-import { sendError, sendSuccess } from "../utils/response.js";
-// Create a new user
+/**
+ * Create a new user
+ */
 export const createUser = async (data) => {
-    const existing = await User.findOne({
-        where: { email: data.email },
-    });
+    const existing = await User.findOne({ where: { email: data.email } });
     if (existing)
-        throw new Error("Email already Exit");
-    return await User.create(data);
+        throw new Error("Email already exists");
+    const created = await User.create(data);
+    return created.get({ plain: true });
 };
-// Get all users
-export const getAllUsers = async () => {
-    return await User.findAll();
-};
-// Get a single user by ID
 export const getUserById = async (id) => {
-    return await User.findByPk(id, { include: [{ model: Address }] });
+    const user = await User.findByPk(id, {
+        attributes: ["id", "first_name", "last_name", "email", "created_at", "updated_at"],
+        include: [
+            {
+                model: Address,
+                attributes: ["id", "user_id", "street", "city", "state", "pincode"],
+            },
+        ],
+    });
+    if (!user)
+        return null;
+    return user.get({ plain: true });
 };
-// Update user by ID
-async function updateUser(reply, id, data) {
-    try {
-        const user = await User.findByPk(id);
-        // console.log(`user before update ${user}`);
-        if (!user) {
-            return sendError(reply, "User not found", 404);
-        }
-        const existing = await User.findOne({
-            where: { email: data.email },
-        });
+/**
+ * Get all users (basic fields)
+ */
+export const getAllUsers = async () => {
+    const users = await User.findAll({ attributes: ["id", "first_name", "last_name", "email"] });
+    return users.map(u => u.get({ plain: true }));
+};
+/**
+ * Update user by id
+ */
+export const updateUser = async (id, data) => {
+    const user = await User.findByPk(id);
+    if (!user)
+        throw new Error("User not found");
+    if (data.email) {
+        const existing = await User.findOne({ where: { email: data.email, id: { [Op.ne]: id } } });
         if (existing)
-            throw new Error("No two user can have same email");
-        await user.update(data);
-        // console.log("updatedUser", updateduser)
-        const updatedUser = await User.findByPk(id);
-        return sendSuccess(reply, updatedUser, "User updated successfully");
+            throw new Error("No two users can have the same email");
     }
-    catch (error) {
-        return sendError(reply, error.message || "Failed to update user");
-    }
-}
-// Delete user by ID
-export const deleteUser = async (reply, id) => {
-    try {
-        const deletedCount = await User.destroy({ where: { id } });
-        if (deletedCount === 0) {
-            return sendError(reply, "User not found", 404);
-        }
-        return sendSuccess(reply, null, "User deleted successfully");
-    }
-    catch (error) {
-        return sendError(reply, error.message || "Failed to delete user");
-    }
+    await user.update(data);
+    const updated = await User.findByPk(id, { attributes: ["id", "first_name", "last_name", "email", "created_at", "updated_at"] });
+    return updated.get({ plain: true });
 };
-export default updateUser;
+/**
+ * Delete user by id
+ */
+export const deleteUser = async (id) => {
+    const deletedCount = await User.destroy({ where: { id } });
+    if (deletedCount === 0)
+        throw new Error("User not found");
+    return;
+};
+/**
+ * Get all users with nested addresses
+ */
+export const getAllUsersWithAddress = async () => {
+    const users = await User.findAll({
+        attributes: ["id", "first_name", "last_name", "email"],
+        include: [{ model: Address, attributes: ["id", "street", "city", "state", "pincode"] }],
+    });
+    return users.map(u => u.get({ plain: true }));
+};

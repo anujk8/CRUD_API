@@ -1,46 +1,80 @@
+
 import { FastifyReply, FastifyRequest } from "fastify";
-import updateUser, {
+import  {
+  updateUser,
   createUser,
   getAllUsers,
   getUserById,
   deleteUser,
+  getAllUsersWithAddress,
 } from "../services/user.service.js";
 import { sendError, sendSuccess, handleError } from "../utils/response.js";
-import { logInfo, logError } from "../utils/logger.js";
-import { isValidEmail } from "../utils/isValidEmail.js";
+import { logError } from "../utils/logger.js";
+
+import {
+  createUserSchema,
+  createUserResponseSchema,
+  updateUserResponseSchema,
+  updateUserSchema,
+  deleteUserResponseSchema,
+  getAllUsersResponseSchema,
+  getUserResponseSchema,
+  getAllUsersWithAddressesResponseSchema,
+  CreateUserInput,
+} from "../schemas/user.schema.js";
 
 // Create User
 export const createUserController = async (
-  request: FastifyRequest,
+  request: FastifyRequest<{ Body: CreateUserInput }>,
   reply: FastifyReply
 ) => {
   try {
-    const { first_name, last_name, email } = request.body as any;
+    // validate request body
+    
+    const body = createUserSchema.parse(request?.body);
 
-    if (!first_name || !last_name || !email)
-      return sendError(reply, "All fields are required", 400);
+    
 
-    if (!isValidEmail(email))
-      return sendError(reply, "Invalid email format", 400);
+    // create user via service
+    const user = await createUser(body);
+   
+    
 
-    const user = await createUser({ first_name, last_name, email });
-    logInfo(`User created: ${user.email}`);
-    return sendSuccess(reply, user, "User created successfully");
+    // build and validate response shape
+    const response = createUserResponseSchema.parse({
+      message: "User created successfully",
+      user,
+    });
+
+    return sendSuccess(reply, response, "User created successfully");
   } catch (error: any) {
-    logError(error.message);
+    logError(error?.message);
     return handleError(error, reply);
   }
 };
 
 // Get All Users
 export const getAllUsersController = async (
-  request: FastifyRequest,
+  _request: FastifyRequest,
   reply: FastifyReply
 ) => {
   try {
     const users = await getAllUsers();
-    return sendSuccess(reply, users, "Users fetched successfully");
+
+    // build response object expected by schema
+    const responseObj = {
+      users:users,
+      total: Array.isArray(users) ? users.length : 0,
+    };
+
+    const parsed = getAllUsersResponseSchema.parse(responseObj);
+    console.log(">>>>>>>>>>>>>",parsed);
+
+    return reply.code(200).send(parsed);
   } catch (error: any) {
+    
+    logError(error?.message);
+    
     return handleError(error, reply);
   }
 };
@@ -55,25 +89,35 @@ export const getUserByIdController = async (
     const user = await getUserById(Number(id));
 
     if (!user) return sendError(reply, "User not found", 404);
-    return sendSuccess(reply, user, "User fetched successfully");
+
+    const parsed = getUserResponseSchema.parse({ user });
+
+    return reply.code(200).send(parsed);
   } catch (error: any) {
+    logError(error?.message);
     return handleError(error, reply);
   }
 };
 
 // Update User
 export const updateUserController = async (
-  request: FastifyRequest<{ Params: { id: number } }>,
+  request: FastifyRequest<{ Params: { id: number }; Body: any }>,
   reply: FastifyReply
 ) => {
   try {
-    const { id } = request.params;
-    const data = request.body;
+    const { id } = request.params as any;
+    const data = updateUserSchema.parse(request.body);
 
-    await updateUser(reply, id, data);
+    const updatedUser = await updateUser(Number(id), data);
 
-    return sendSuccess(reply, data, "User Created successfully");
+    const parsed = updateUserResponseSchema.parse({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+
+    return reply.code(200).send(parsed);
   } catch (error: any) {
+    logError(error?.message);
     return handleError(error, reply);
   }
 };
@@ -86,10 +130,32 @@ export const deleteUserController = async (
   try {
     const { id } = request.params as any;
 
-    await deleteUser(reply, id);
+    await deleteUser(Number(id));
 
-    return sendSuccess(reply, null, "User deleted successfully");
+    const parsed = deleteUserResponseSchema.parse({
+      message: "User deleted successfully",
+      success: true,
+    });
+
+    return reply.code(200).send(parsed);
   } catch (error: any) {
+    logError(error?.message);
+    return handleError(error, reply);
+  }
+};
+
+export const getAllUsersWithAddressesController = async (
+  _request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  try {
+    const users = await getAllUsersWithAddress();
+
+    const parsed = getAllUsersWithAddressesResponseSchema.parse(users);
+
+    return reply.code(200).send(parsed);
+  } catch (error: any) {
+    logError(error?.message);
     return handleError(error, reply);
   }
 };
